@@ -161,6 +161,7 @@ void processCloud(void)
     std::shared_ptr<PointCloudMsg> msg = stuffed_cloud_queue.popWait();
     if (msg.get() == NULL)
     {
+      RS_WARNING << "msg is null" << RS_REND;
       continue;
     }
 
@@ -185,17 +186,67 @@ int main(int argc, char* argv[])
   RS_TITLE << "------------------------------------------------------" << RS_REND;
   RS_TITLE << "            RS_Driver Core Version: v" << getDriverVersion() << RS_REND;
   RS_TITLE << "------------------------------------------------------" << RS_REND;
+  RS_TITLE << "            RS_Driver Pcap Updated Demo" << RS_REND;
+  if (argc < 2) {
+    RS_ERROR << "Usage: " << argv[0] << " <pcap_file_path> [--msop_port=6699] [--difop_port=7788] [--imu_port=6688] [--lidar_type=RSAIRY] [--pcap_rate=1.0]" << RS_REND;
+    return -1;
+  }
 
-  RSDriverParam param;                                         ///< Create a parameter object
-  param.input_type = InputType::PCAP_FILE;
-  param.input_param.pcap_path = "/home/robosense/lidar.pcap";  ///< Set the pcap file directory
-  param.input_param.msop_port = 6699;                          ///< Set the lidar msop port number, the default is 6699
-  param.input_param.difop_port = 7788;                         ///< Set the lidar difop port number, the default is 7788
+  // -----------------------------
+  // Default parameters
+  // -----------------------------
+  std::string pcap_file_path = argv[1];
+  int msop_port = 7502;
+  int difop_port = 7788;
+  int imu_port = 6688;
+  std::string lidar_type_str = "RSAIRY";
+  double pcap_rate = 1.0;
+
+  // -----------------------------
+  // Parse optional parameters
+  // -----------------------------
+  for (int i = 2; i < argc; ++i) {
+    std::string arg = argv[i];
+    if (arg.find("--msop_port=") == 0)
+      msop_port = std::stoi(arg.substr(12));
+    else if (arg.find("--difop_port=") == 0)
+      difop_port = std::stoi(arg.substr(13));
 #if ENABLE_IMU_PARSE
-  param.input_param.imu_port = 6688;                         ///< Set the lidar imu port number, the default is 0
+    else if (arg.find("--imu_port=") == 0)
+      imu_port = std::stoi(arg.substr(11));
 #endif
-  param.lidar_type = LidarType::RSAIRY;                          ///< Set the lidar type. Make sure this type is correct
-  param.input_param.pcap_rate = 1.0;
+    else if (arg.find("--lidar_type=") == 0)
+      lidar_type_str = arg.substr(13);
+    else if (arg.find("--pcap_rate=") == 0)
+      pcap_rate = std::stod(arg.substr(13));
+    else {
+      RS_WARNING << "Unknown argument: " << arg << RS_REND;
+    }
+  }
+
+  // -----------------------------
+  // Set up param object
+  // -----------------------------
+  RSDriverParam param;
+  param.input_type = InputType::PCAP_FILE;
+  param.input_param.pcap_path = pcap_file_path;
+  param.input_param.msop_port = msop_port;
+  param.input_param.difop_port = difop_port;
+#if ENABLE_IMU_PARSE
+  param.input_param.imu_port = imu_port;
+#endif
+  param.lidar_type = LidarType::RSAIRY;  // Default
+  if (lidar_type_str == "RSAIRY") param.lidar_type = LidarType::RSAIRY;
+  else if (lidar_type_str == "RSBP") param.lidar_type = LidarType::RSBP;
+  else if (lidar_type_str == "RSP128") param.lidar_type = LidarType::RSP128;
+  else if (lidar_type_str == "RS32") param.lidar_type = LidarType::RS32;
+  else {
+    RS_ERROR << "Unknown lidar type: " << lidar_type_str << RS_REND;
+    param.lidar_type = LidarType::RSAIRY;
+  }
+  // TODO: Add other lidar types if needed. Update from the driver_param.hpp file.
+
+  param.input_param.pcap_rate = pcap_rate;
   param.print();
   
   LidarDriver<PointCloudMsg> driver;               ///< Declare the driver object
