@@ -38,6 +38,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <rs_driver/msg/point_cloud_msg.hpp>
 #endif
 
+#include <pcl/io/pcd_io.h>
+
 //#define ORDERLY_EXIT
 
 // Define the macro: 1 to enable IMU parsing, 0 to disable IMU parsing
@@ -154,8 +156,16 @@ void exceptionCallback(const Error& code)
   RS_WARNING << code.toString() << RS_REND;
 }
 
-void processCloud(void)
+void processCloud(const std::string& output_folder)
 {
+
+  std::string pcd_file_path = output_folder + "/cloud_";
+  std::string pcd_file_suffix = ".pcd";
+  
+  // Create the output directory if it doesn't exist
+  
+  // std::cout << "Output folder: " << output_folder << std::endl;
+
   while (!to_exit_process)
   {
     std::shared_ptr<PointCloudMsg> msg = stuffed_cloud_queue.popWait();
@@ -164,9 +174,13 @@ void processCloud(void)
       RS_WARNING << "msg is null" << RS_REND;
       continue;
     }
-
     // Well, it is time to process the point cloud msg, even it is time-consuming.
     RS_MSG << "msg: " << msg->seq << " point cloud size: " << msg->points.size() << RS_REND;
+    
+    // Save to PCD file
+    std::string filename = pcd_file_path + std::to_string(msg->seq) + pcd_file_suffix;
+    pcl::io::savePCDFileASCII(filename, *msg);
+    RS_MSG << "Saved " << filename << RS_REND;
 
 #if 0
     for (auto it = msg->points.begin(); it != msg->points.end(); it++)
@@ -188,7 +202,7 @@ int main(int argc, char* argv[])
   RS_TITLE << "------------------------------------------------------" << RS_REND;
   RS_TITLE << "            RS_Driver Pcap Updated Demo" << RS_REND;
   if (argc < 2) {
-    RS_ERROR << "Usage: " << argv[0] << " <pcap_file_path> [--msop_port=6699] [--difop_port=7788] [--imu_port=6688] [--lidar_type=RSAIRY] [--pcap_rate=1.0]" << RS_REND;
+    RS_ERROR << "Usage: " << argv[0] << " <pcap_file_path> [--output_dir=output][--msop_port=6699] [--difop_port=7788] [--imu_port=6688] [--lidar_type=RSAIRY] [--pcap_rate=1.0]" << RS_REND;
     return -1;
   }
 
@@ -196,6 +210,8 @@ int main(int argc, char* argv[])
   // Default parameters
   // -----------------------------
   std::string pcap_file_path = argv[1];
+  std::string output_dir = "output"; // Default output directory
+  // TODO: Check if the output directory exists, if not, create it
   int msop_port = 7502;
   int difop_port = 7788;
   int imu_port = 6688;
@@ -207,6 +223,8 @@ int main(int argc, char* argv[])
   // -----------------------------
   for (int i = 2; i < argc; ++i) {
     std::string arg = argv[i];
+    if (arg.find("--output_dir=") == 0)
+      output_dir = arg.substr(13);
     if (arg.find("--msop_port=") == 0)
       msop_port = std::stoi(arg.substr(12));
     else if (arg.find("--difop_port=") == 0)
@@ -261,7 +279,7 @@ int main(int argc, char* argv[])
     return -1;
   }
 
-  std::thread cloud_handle_thread = std::thread(processCloud);
+  std::thread cloud_handle_thread = std::thread(processCloud, output_dir);
 
 #if ENABLE_IMU_PARSE
   std::thread imuData_handle_thread = std::thread(processImuData);
