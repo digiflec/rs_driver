@@ -34,8 +34,15 @@ if(NOT ${DISABLE_PCAP_PARSE})
 add_executable(demo_pcap
                demo_pcap.cpp)
 
-target_link_libraries(demo_pcap
-                     ${EXTERNAL_LIBS})
+if(${ENABLE_PCL_POINTCLOUD})
+  target_link_libraries(demo_pcap
+                        ${EXTERNAL_LIBS}
+                        ${PCL_LIBRARIES})
+else()
+  target_link_libraries(demo_pcap
+                        ${EXTERNAL_LIBS})
+endif()
+
 
 endif(NOT ${DISABLE_PCAP_PARSE})
 

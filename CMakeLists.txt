@@ -26,14 +26,14 @@ option(ENABLE_WAIT_IF_QUEUE_EMPTY "Enable waiting for a while in handle thread i
 option(ENABLE_EPOLL_RECEIVE       "Receive packets with epoll() instead of select()" OFF)
 
 option(ENABLE_STAMP_WITH_LOCAL    "Enable stamp point cloud with local time" OFF)
-option(ENABLE_PCL_POINTCLOUD      "Enable PCL Point Cloud" OFF)
+option(ENABLE_PCL_POINTCLOUD      "Enable PCL Point Cloud" ON)
 option(ENABLE_CRC32_CHECK         "Enable CRC32 Check on MSOP Packet" OFF)
 option(ENABLE_DIFOP_PARSE         "Enable parsing DIFOP Packet" OFF)
 
 #=============================
 #  Compile Demos, Tools, Tests
 #=============================
-option(COMPILE_DEMOS "Build rs_driver demos" OFF)
+option(COMPILE_DEMOS "Build rs_driver demos" ON)
 option(COMPILE_TOOLS "Build rs_driver tools" OFF)
 option(COMPILE_TOOL_VIEWER "Build point cloud visualization tool" OFF)
 option(COMPILE_TOOL_PCDSAVER "Build point cloud pcd saver tool" OFF)
