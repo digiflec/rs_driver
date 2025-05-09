@@ -156,11 +156,9 @@ void exceptionCallback(const Error& code)
   RS_WARNING << code.toString() << RS_REND;
 }
 
-void processCloud(const std::string& output_folder)
+void processCloud(const std::string& output_filename, std::uint32_t frame_number)
 {
 
-  std::string pcd_file_path = output_folder + "/cloud_";
-  std::string pcd_file_suffix = ".pcd";
   
   // Create the output directory if it doesn't exist
   
@@ -174,13 +172,21 @@ void processCloud(const std::string& output_folder)
       RS_WARNING << "msg is null" << RS_REND;
       continue;
     }
+    if (msg->seq == frame_number){
+      RS_MSG << "msg: " << msg->seq << " point cloud size: " << msg->points.size() << RS_REND;
+      
+      pcl::io::savePCDFileASCII(output_filename, *msg); 
+      RS_MSG << "Saved " << output_filename << RS_REND;
+      to_exit_process = true;  // Graceful shutdown trigger
+      return;
+    }
     // Well, it is time to process the point cloud msg, even it is time-consuming.
-    RS_MSG << "msg: " << msg->seq << " point cloud size: " << msg->points.size() << RS_REND;
+    // RS_MSG << "msg: " << msg->seq << " point cloud size: " << msg->points.size() << RS_REND;
     
-    // Save to PCD file
-    std::string filename = pcd_file_path + std::to_string(msg->seq) + pcd_file_suffix;
-    pcl::io::savePCDFileASCII(filename, *msg);
-    RS_MSG << "Saved " << filename << RS_REND;
+    // // Save to PCD file
+    // std::string filename = pcd_file_path + std::to_string(msg->seq) + pcd_file_suffix;
+    // pcl::io::savePCDFileASCII(filename, *msg);
+    // RS_MSG << "Saved " << filename << RS_REND;
 
 #if 0
     for (auto it = msg->points.begin(); it != msg->points.end(); it++)
@@ -202,7 +208,7 @@ int main(int argc, char* argv[])
   RS_TITLE << "------------------------------------------------------" << RS_REND;
   RS_TITLE << "            RS_Driver Pcap Updated Demo" << RS_REND;
   if (argc < 2) {
-    RS_ERROR << "Usage: " << argv[0] << " <pcap_file_path> [--output_dir=output][--msop_port=6699] [--difop_port=7788] [--imu_port=6688] [--lidar_type=RSAIRY] [--pcap_rate=1.0]" << RS_REND;
+    RS_ERROR << "Usage: " << argv[0] << " <pcap_file_path> [--output_filename=cloud.pcd][--frame_number=0][--msop_port=6699] [--difop_port=7788] [--imu_port=6688] [--lidar_type=RSAIRY] [--pcap_rate=1.0]" << RS_REND;
     return -1;
   }
 
@@ -210,7 +216,8 @@ int main(int argc, char* argv[])
   // Default parameters
   // -----------------------------
   std::string pcap_file_path = argv[1];
-  std::string output_dir = "output"; // Default output directory
+  std::string output_filename = "cloud.pcd"; // Default output filename
+  unsigned long frame_number = 0; // Default frame number
   // TODO: Check if the output directory exists, if not, create it
   int msop_port = 7502;
   int difop_port = 7788;
@@ -223,9 +230,11 @@ int main(int argc, char* argv[])
   // -----------------------------
   for (int i = 2; i < argc; ++i) {
     std::string arg = argv[i];
-    if (arg.find("--output_dir=") == 0)
-      output_dir = arg.substr(13);
-    if (arg.find("--msop_port=") == 0)
+    if (arg.find("--output_filename=") == 0)
+      output_filename = arg.substr(18); 
+    else if (arg.find("--frame_number=") == 0)
+      frame_number = std::stoul(arg.substr(15)); 
+    else if (arg.find("--msop_port=") == 0)
       msop_port = std::stoi(arg.substr(12));
     else if (arg.find("--difop_port=") == 0)
       difop_port = std::stoi(arg.substr(13));
@@ -265,7 +274,13 @@ int main(int argc, char* argv[])
   // TODO: Add other lidar types if needed. Update from the driver_param.hpp file.
 
   param.input_param.pcap_rate = pcap_rate;
+
+  std::uint32_t frame_number_uint32 = static_cast<uint32_t>(frame_number);
+
   param.print();
+
+  RS_MSG << "output_filename: " << output_filename << RS_REND;
+  RS_MSG << "frame_number: " << frame_number_uint32 << RS_REND;
   
   LidarDriver<PointCloudMsg> driver;               ///< Declare the driver object
   driver.regPointCloudCallback(driverGetPointCloudFromCallerCallback, driverReturnPointCloudToCallerCallback); ///< Register the point cloud callback functions
@@ -279,7 +294,7 @@ int main(int argc, char* argv[])
     return -1;
   }
 
-  std::thread cloud_handle_thread = std::thread(processCloud, output_dir);
+  std::thread cloud_handle_thread = std::thread(processCloud, output_filename, frame_number_uint32);
 
 #if ENABLE_IMU_PARSE
   std::thread imuData_handle_thread = std::thread(processImuData);
@@ -298,10 +313,16 @@ int main(int argc, char* argv[])
   to_exit_process = true;
   cloud_handle_thread.join();
 #else
-  while (true)
+  while (!to_exit_process)
   {
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
+  driver.stop();
+  cloud_handle_thread.join();
+#endif
+#if ENABLE_IMU_PARSE
+  imuData_handle_thread.join();
+
 #endif
 
   return 0;
